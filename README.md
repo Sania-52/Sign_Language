@@ -4,5 +4,5 @@ The S.I.G.N (Sign Interpretation using Gesture Navigation) project addresses the
 Convolutional Neural Networks (CNNs) handle gesture recognition, while MediaPipe and OpenPose ensure precise pose estimation. NLP techniques enhance grammatical accuracy, and the system achieves over 95% accuracy, delivering reliable performance. A Streamlit-based interface enables smooth real-time
 interaction, making S.I.G.N a scalable, cost-effective, and inclusive alternative to human interpreters.
 
-# More info abouth this project
+# More info about this project
 Click here 👉🏻: https://ijsrem.com/download/s-i-g-n-sign-interpretation-and-gesture-navigation/
