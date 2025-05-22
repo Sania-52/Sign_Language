@@ -9,6 +9,11 @@ import random
 from PIL import Image
 import warnings
 from deep_translator import GoogleTranslator
+from cvzone.HandTrackingModule import HandDetector
+from cvzone.ClassificationModule import Classifier
+import pandas as pd
+import datetime
+import math
 
 warnings.filterwarnings("ignore", category=UserWarning, module="tensorflow") 
 st.set_page_config(
@@ -129,9 +134,45 @@ with col2:
 )
 
 #        BUTTONS              BUTTONS              BUTTONS
+
+# Cache the model loading
+@st.cache_resource
+def load_model():
+    try:
+        detector = HandDetector(maxHands=1)
+        classifier = Classifier(
+            "../../Model/keras_model.h5",
+            "../../Model/labels.txt"
+        )
+        return detector, classifier
+    except Exception as e:
+        st.error(f"Error loading model: {str(e)}")
+        return None, None
+    
+    # Initialize session state
+if 'running' not in st.session_state:
+    st.session_state.running = False
+if 'predictions' not in st.session_state:
+    st.session_state.predictions = []
+
+    # Load model
+detector, classifier = load_model()
+
+# Camera settings
+imgSize = 50
+offset = 5
+# Labels
+with open("../../Model/labels.txt", "r") as f:
+    labels = [line.strip() for line in f.readlines()]
+# Create placeholders
+frame_placeholder = st.empty()
+table_placeholder = st.empty()
+
 st.markdown("<hr style='border: 3px solid #4CAF50; margin-top: 50px; margin-bottom: 50px;'>", unsafe_allow_html=True)
 col1, col2 = st.columns(2)
-with col1:
+with col1:# Camera toggle button
+    if st.button("Start Camera" if not st.session_state.running else "Stop Camera"):
+        st.session_state.running = not st.session_state.running
     st.markdown(
         f"""
         <div style='text-align: center; margin-top: 50px;'>
@@ -179,6 +220,111 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# Main loop
+if st.session_state.running:
+    try:
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            st.error("Could not open camera!")
+            st.session_state.running = False
+        else:
+            while st.session_state.running:
+                success, img = cap.read()
+                if not success:
+                    st.error("Failed to read from camera!")
+                    break
+
+                # Detect hands
+                hands, img = detector.findHands(img)
+                
+                if hands:
+                    hand = hands[0]  # Get the first hand detected
+                    x, y, w, h = hand['bbox']
+                    
+                    # Ensure bbox coordinates are within image bounds
+                    y_start = max(y - offset, 0)
+                    y_end = min(y + h + offset, img.shape[0])
+                    x_start = max(x - offset, 0)
+                    x_end = min(x + w + offset, img.shape[1])
+                    
+                    imgCrop = img[y_start:y_end, x_start:x_end]
+                    
+                    if imgCrop.size > 0:  # Check if crop is valid
+                        # Prepare white background
+                        aspectRatio = h / w
+                        imgWhite = np.ones((imgSize, imgSize, 3), np.uint8) * 255
+                        
+                        # Resize and center the image
+                        if aspectRatio > 1:
+                            k = imgSize / h
+                            wCal = math.ceil(k * w)
+                            imgResize = cv2.resize(imgCrop, (wCal, imgSize))
+                            wGap = math.ceil((imgSize - wCal) / 2)
+                            imgWhite[:, wGap:wGap + wCal] = imgResize
+                        else:
+                            k = imgSize / w
+                            hCal = math.ceil(k * h)
+                            imgResize = cv2.resize(imgCrop, (imgSize, hCal))
+                            hGap = math.ceil((imgSize - hCal) / 2)
+                            imgWhite[hGap:hGap + hCal, :] = imgResize
+                        
+                        # Get prediction
+                        prediction, index = classifier.getPrediction(imgWhite, draw=False)
+                        confidence = prediction[index]
+                        label = labels[index]
+                        
+                        # Draw on image
+                        cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (255, 0, 255), 2)
+                        cv2.putText(img, f"{label} ({confidence:.2%})", 
+                                  (x_start, y_start - 10), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        
+                        # Store prediction
+                        st.session_state.predictions.append({
+                            'timestamp': datetime.datetime.now(),
+                            'label': label,
+                            'confidence': confidence
+                        })
+                
+                # Convert BGR to RGB for Streamlit
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                frame_placeholder.image(img_rgb, channels="RGB", use_column_width=True)
+                
+                # Update predictions table
+                if st.session_state.predictions:
+                    df = pd.DataFrame(st.session_state.predictions)
+                    table_placeholder.dataframe(
+                        df.tail(10).style.format({'confidence': '{:.2%}'}),
+                        use_container_width=True
+                    )
+                
+            cap.release()
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        st.session_state.running = False
+# Display summary when stopped
+elif st.session_state.predictions:
+    df = pd.DataFrame(st.session_state.predictions)
+    st.subheader("Detection History")
+    st.dataframe(
+        df.style.format({'confidence': '{:.2%}'}),
+        use_container_width=True
+    )
+    
+    # Add some statistics
+    st.subheader("Statistics")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Detections", len(df))
+    with col2:
+        st.metric("Unique Gestures", df['label'].nunique())
+    with col3:
+        st.metric("Avg. Confidence", f"{df['confidence'].mean():.2%}")
+        
+    # Add a bar chart of gesture frequencies
+    st.subheader("Gesture Frequencies")
+    gesture_counts = df['label'].value_counts()
+    st.bar_chart(gesture_counts) 
 
 # Define columns
 col1, col2 = st.columns([1, 2])

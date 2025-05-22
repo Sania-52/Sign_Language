@@ -5,7 +5,7 @@ import os
 
 def get_video_for_word(word):
     """Fetches a pre-animated sign language video from local storage."""
-    video_folder = r"C:\Users\sania kalpesh pimple\OneDrive\Desktop\Sign Language\S.I.G.N UI\videos" 
+    video_folder = "C:/Users/Dell/Music/Single hand sign detection/UI/Sign_Language/videos"
 
     videos = {
         "how are you": os.path.join(video_folder, "how_are_you.mp4"),
