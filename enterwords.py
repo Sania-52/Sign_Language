@@ -5,7 +5,7 @@ import os
 
 def get_video_for_word(word):
     """Fetches a pre-animated sign language video from local storage."""
-    video_folder = "C:/Users/Dell/Music/Single hand sign detection/UI/Sign_Language/videos"
+    video_folder = "Sign_Language/videos"
 
     videos = {
         "how are you": os.path.join(video_folder, "how_are_you.mp4"),
@@ -36,4 +36,5 @@ st.markdown(
 word = st.text_input("Enter a word:")
 if st.button("Search"):
     video_path = get_video_for_word(word)
+
     st.video(video_path)
