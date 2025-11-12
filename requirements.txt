@@ -1,7 +1,7 @@
 streamlit==1.37.0
 pandas==2.2.2
 matplotlib==3.9.1
-opencv-python==4.8.1.78
+opencv-python-headless
 mediapipe==0.10.14
 numpy==1.26.4
 Pillow==10.4.0
